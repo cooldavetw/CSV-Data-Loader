@@ -23,9 +23,9 @@ DEFAULT_SCHEMA = os.getenv("PG_SCHEMA", "public")
 
 SEGMA_API_BASE_URL = os.getenv("SEGMA_API_BASE_URL", "")
 SEGMA_API_TOKEN = os.getenv("SEGMA_API_TOKEN", "")
-SEGMA_DATA_SOURCES_PATH = os.getenv("SEGMA_DATA_SOURCES_PATH", "/api/data-sources")
+SEGMA_DATA_SOURCES_PATH = os.getenv("SEGMA_DATA_SOURCES_PATH", "/api/v1/data_sources")
 SEGMA_ACTION_DATASETS_PATH = os.getenv(
-    "SEGMA_ACTION_DATASETS_PATH", "/api/action-datasets"
+    "SEGMA_ACTION_DATASETS_PATH", "/api/v1/action_datasets"
 )
 
 LLM_API_KEY = os.getenv("LLM_API_KEY", "abcd")
@@ -191,11 +191,11 @@ def extract_segma_items(payload: Any) -> List[Dict[str, Any]]:
     return [item for item in items if isinstance(item, dict)]
 
 
-def datasource_id(datasource: Dict[str, Any]) -> str:
+def datasource_id(datasource: Dict[str, Any]) -> Any:
     for key in ("id", "data_source_id", "datasource_id", "uuid"):
         value = datasource.get(key)
-        if value:
-            return str(value)
+        if value is not None and value != "":
+            return value
     raise ValueError("Selected Segma data source does not include an id")
 
 
@@ -234,11 +234,9 @@ def create_segma_action_dataset(
 ) -> Dict[str, Any]:
     payload = {
         "name": dataset_name,
-        "type": "action_dataset",
         "data_source_id": datasource_id(data_source),
-        "data_source_name": datasource_label(data_source),
+        "model_type": "sql",
         "sql": sql,
-        "query": sql,
     }
     response = requests.post(
         build_api_url(base_url, action_datasets_path),
@@ -606,7 +604,7 @@ def main():
         action_sql = f"SELECT * FROM {qualified_table_name(last_loaded['schema'], last_loaded['table'])}"
 
     dataset_name = st.text_input("action_dataset name", value=dataset_name_default)
-    st.text_area("SQL", value=action_sql, height=100, disabled=True)
+    action_sql = st.text_area("SQL", value=action_sql, height=140)
 
     if st.button("Create Segma action_dataset"):
         if not last_loaded:
@@ -618,6 +616,9 @@ def main():
         if not dataset_name.strip():
             st.error("action_dataset name is required.")
             return
+        if not action_sql.strip():
+            st.error("SQL is required.")
+            return
 
         with st.spinner("Creating Segma action_dataset ..."):
             try:
@@ -627,7 +628,7 @@ def main():
                     segma_action_datasets_path,
                     data_source,
                     dataset_name.strip(),
-                    action_sql,
+                    action_sql.strip(),
                 )
             except Exception as exc:
                 st.error(f"Segma action_dataset creation failed: {exc}")
