@@ -9,6 +9,8 @@ import streamlit as st
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
+from urllib3 import disable_warnings
+from urllib3.exceptions import InsecureRequestWarning
 
 
 # ---------------------------------------------------------------------
@@ -161,6 +163,10 @@ def build_api_url(base_url: str, path: str) -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}"
 
 
+def configure_tls_warnings() -> None:
+    disable_warnings(InsecureRequestWarning)
+
+
 def segma_headers(api_token: str) -> Dict[str, str]:
     headers = {
         "Accept": "application/json",
@@ -214,9 +220,11 @@ def fetch_segma_data_sources(
     api_token: str,
     data_sources_path: str,
 ) -> List[Dict[str, Any]]:
+    configure_tls_warnings()
     response = requests.get(
         build_api_url(base_url, data_sources_path),
         headers=segma_headers(api_token),
+        verify=False,
         timeout=30,
     )
     response.raise_for_status()
@@ -231,6 +239,7 @@ def create_segma_action_dataset(
     dataset_name: str,
     sql: str,
 ) -> Dict[str, Any]:
+    configure_tls_warnings()
     payload = {
         "name": dataset_name,
         "data_source_id": datasource_id(data_source),
@@ -241,6 +250,7 @@ def create_segma_action_dataset(
         build_api_url(base_url, action_datasets_path),
         headers=segma_headers(api_token),
         json=payload,
+        verify=False,
         timeout=30,
     )
     response.raise_for_status()
