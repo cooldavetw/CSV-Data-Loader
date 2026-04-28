@@ -21,16 +21,15 @@ PG_PASSWORD = os.getenv("PG_PASSWORD", "sEgMa6")
 PG_DATABASE = os.getenv("PG_DATABASE", "postgres")
 DEFAULT_SCHEMA = os.getenv("PG_SCHEMA", "public")
 
-SEGMA_API_BASE_URL = os.getenv("SEGMA_API_BASE_URL", "")
-SEGMA_API_TOKEN = os.getenv("SEGMA_API_TOKEN", "")
+SEGMA_API_BASE_URL = os.getenv("SEGMA_API_BASE_URL", "http://backend:3040")
 SEGMA_DATA_SOURCES_PATH = os.getenv("SEGMA_DATA_SOURCES_PATH", "/api/v1/data_sources")
 SEGMA_ACTION_DATASETS_PATH = os.getenv(
     "SEGMA_ACTION_DATASETS_PATH", "/api/v1/action_datasets"
 )
 
 LLM_API_KEY = os.getenv("LLM_API_KEY", "abcd")
-LLM_MODEL = os.getenv("LLM_MODEL", "gemma4")
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://192.168.66.26:4000/v1")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemma-4")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://llm-proxy:4000/v1")
 
 class GeneratedCsv(BaseModel):
     csv_text: str = Field(min_length=1)
@@ -394,11 +393,19 @@ def main():
     )
     st.sidebar.header("Segma API 設定")
     segma_base_url = st.sidebar.text_input("Segma API Base URL", value=SEGMA_API_BASE_URL)
+
+    if "token" not in st.session_state:
+        token_from_url = st.query_params.get("token", None)
+        if token_from_url:
+            st.session_state.token = token_from_url
+
     segma_api_token = st.sidebar.text_input(
-        "Segma API Token",
-        value=SEGMA_API_TOKEN,
+        "API bearer token",
+        value=st.session_state.get("token", ""),
         type="password",
     )
+    st.session_state.token = segma_api_token
+
     segma_data_sources_path = st.sidebar.text_input(
         "Data sources path",
         value=SEGMA_DATA_SOURCES_PATH,
