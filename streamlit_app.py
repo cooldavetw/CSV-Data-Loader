@@ -21,7 +21,7 @@ PG_PASSWORD = os.getenv("PG_PASSWORD", "sEgMa6")
 PG_DATABASE = os.getenv("PG_DATABASE", "postgres")
 DEFAULT_SCHEMA = os.getenv("PG_SCHEMA", "public")
 
-SEGMA_API_BASE_URL = os.getenv("SEGMA_API_BASE_URL", "http://backend:3040")
+SEGMA_API_BASE_URL = os.getenv("SEGMA_API_BASE_URL", "https://192.168.66.26")
 SEGMA_DATA_SOURCES_PATH = os.getenv("SEGMA_DATA_SOURCES_PATH", "/api/v1/data_sources")
 SEGMA_ACTION_DATASETS_PATH = os.getenv(
     "SEGMA_ACTION_DATASETS_PATH", "/api/v1/action_datasets"
