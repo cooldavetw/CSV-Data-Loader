@@ -23,7 +23,7 @@ PG_PASSWORD = os.getenv("PG_PASSWORD", "sEgMa6")
 PG_DATABASE = os.getenv("PG_DATABASE", "postgres")
 DEFAULT_SCHEMA = os.getenv("PG_SCHEMA", "public")
 
-SEGMA_API_BASE_URL = os.getenv("SEGMA_API_BASE_URL", "https://192.168.66.26")
+SEGMA_API_BASE_URL = os.getenv("SEGMA_API_BASE_URL", "http://backend:3040")
 SEGMA_DATA_SOURCES_PATH = os.getenv("SEGMA_DATA_SOURCES_PATH", "/api/v1/data_sources")
 SEGMA_ACTION_DATASETS_PATH = os.getenv(
     "SEGMA_ACTION_DATASETS_PATH", "/api/v1/action_datasets"
@@ -167,11 +167,12 @@ def configure_tls_warnings() -> None:
     disable_warnings(InsecureRequestWarning)
 
 
-def segma_headers(api_token: str) -> Dict[str, str]:
+def segma_headers(api_token: str, include_content_type: bool = False) -> Dict[str, str]:
     headers = {
         "Accept": "application/json",
-        "Content-Type": "application/json",
     }
+    if include_content_type:
+        headers["Content-Type"] = "application/json"
     if api_token.strip():
         headers["Authorization"] = f"Bearer {api_token.strip()}"
     return headers
@@ -248,7 +249,7 @@ def create_segma_action_dataset(
     }
     response = requests.post(
         build_api_url(base_url, action_datasets_path),
-        headers=segma_headers(api_token),
+        headers=segma_headers(api_token, include_content_type=True),
         json=payload,
         verify=False,
         timeout=30,
