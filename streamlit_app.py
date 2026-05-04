@@ -32,6 +32,7 @@ SEGMA_ACTION_DATASETS_PATH = os.getenv(
 LLM_API_KEY = os.getenv("LLM_API_KEY", "abcd")
 LLM_MODEL = os.getenv("LLM_MODEL", "gemma-4")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://llm-proxy:4000/v1")
+LLM_TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "180"))
 
 class GeneratedCsv(BaseModel):
     csv_text: str = Field(min_length=1)
@@ -281,6 +282,7 @@ def generate_csv_with_llm(
     user_prompt: str,
     row_count: int,
     separator: str,
+    timeout_seconds: int,
 ) -> str:
     if not api_key.strip():
         raise ValueError("LLM API key is required")
@@ -302,24 +304,43 @@ def generate_csv_with_llm(
         "Every row must have the same number of fields as the header. "
         f"Data requirements: {user_prompt.strip()}"
     )
-    response = requests.post(
-        f"{base_url.rstrip('/')}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key.strip()}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": model.strip(),
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.2,
-        },
-        timeout=60,
-    )
-    response.raise_for_status()
-    payload = response.json()
+    try:
+        response = requests.post(
+            f"{base_url.rstrip('/')}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key.strip()}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model.strip(),
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.2,
+            },
+            timeout=timeout_seconds,
+        )
+        response.raise_for_status()
+    except requests.Timeout as exc:
+        raise TimeoutError(
+            f"LLM request timed out after {timeout_seconds} seconds. "
+            "Try a smaller row count, a faster model, or a higher timeout."
+        ) from exc
+    except requests.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else "error"
+        response_text = exc.response.text[:500] if exc.response is not None else ""
+        message = f"LLM API returned HTTP {status_code}"
+        if response_text:
+            message = f"{message}: {response_text}"
+        raise RuntimeError(message) from exc
+    except requests.RequestException as exc:
+        raise ConnectionError(f"Cannot reach LLM API at {base_url.strip()}: {exc}") from exc
+
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise ValueError("LLM response was not valid JSON") from exc
 
     try:
         content = payload["choices"][0]["message"]["content"]
@@ -401,6 +422,14 @@ def main():
         "LLM model name",
         value=LLM_MODEL,
         help="Model name for answering questions.",
+    )
+    llm_timeout_seconds = st.sidebar.number_input(
+        "LLM timeout seconds",
+        min_value=5,
+        max_value=900,
+        value=LLM_TIMEOUT_SECONDS,
+        step=5,
+        help="Maximum time to wait for CSV generation.",
     )
     st.sidebar.header("Segma API 設定")
     segma_base_url = st.sidebar.text_input("Segma API Base URL", value=SEGMA_API_BASE_URL)
@@ -513,8 +542,13 @@ def main():
                         llm_prompt,
                         int(generated_rows),
                         generated_separator,
+                        int(llm_timeout_seconds),
                     )
                     parse_generated_csv(generated_csv, generated_separator)
+                except TimeoutError as exc:
+                    st.error(str(exc))
+                except (ConnectionError, RuntimeError) as exc:
+                    st.error(f"LLM CSV generation failed: {exc}")
                 except Exception as exc:
                     st.error(f"LLM CSV generation failed validation: {exc}")
                 else:
